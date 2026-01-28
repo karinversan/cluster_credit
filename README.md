@@ -14,7 +14,7 @@ An interactive customer-segmentation project with offer matching.
 Full MLOps loop: data loading -> training -> experiment tracking -> batch scoring -> interactive visualization.
 
 ## Screen Recording (Streamlit)
-<video src="exmp/app_recording.gif" controls loop muted playsinline style="max-width: 100%;"></video>
+![App visualization](exmp/app_recording.gif)
 
 If the video does not render, open the file directly: `exmp/app_recording.mov`.
 
