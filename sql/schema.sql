@@ -1,11 +1,11 @@
 CREATE TABLE IF NOT EXISTS customer_features (
-  customer_id        BIGINT,
+  customer_id        TEXT,
   event_timestamp    TIMESTAMP,
   balance            DOUBLE PRECISION,
   balance_frequency  DOUBLE PRECISION,
   purchases          DOUBLE PRECISION,
   oneoff_purchases   DOUBLE PRECISION,
-  installment_purchases DOUBLE PRECISION,
+  installments_purchases DOUBLE PRECISION,
   cash_advance       DOUBLE PRECISION,
   purchases_frequency DOUBLE PRECISION,
   oneoff_purchases_frequency DOUBLE PRECISION,
@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS customer_features (
 );
 
 CREATE TABLE IF NOT EXISTS customer_segments (
-  customer_id      BIGINT,
+  customer_id      TEXT,
   event_timestamp  TIMESTAMP,
   segment_id       INT,
   segment_name     TEXT,
