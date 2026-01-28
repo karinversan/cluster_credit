@@ -162,8 +162,23 @@ def init_session_state(db_uri: str):
     st.session_state["features"] = load_random_row(db_uri)
 
 
-def set_features(values: Dict[str, float]) -> None:
+def set_features(values: Dict[str, float], update_inputs: bool = False) -> None:
     st.session_state["features"] = values
+    if update_inputs:
+        st.session_state["pending_features"] = values
+        st.rerun()
+
+
+def apply_pending_inputs() -> None:
+    pending = st.session_state.pop("pending_features", None)
+    if not pending:
+        return
+    for name, value in pending.items():
+        key = f"input_{name}"
+        if name in INT_FEATURES:
+            st.session_state[key] = int(round(value))
+        else:
+            st.session_state[key] = float(value)
 
 
 def render_group(
@@ -297,6 +312,7 @@ if st.session_state["viz_uri"] and not is_valid_mlflow_uri(st.session_state["viz
 
 st.session_state["db_uri"] = normalize_db_uri(st.session_state["db_uri"])
 init_session_state(st.session_state["db_uri"])
+apply_pending_inputs()
 
 with st.sidebar:
     st.subheader("Model URIs")
@@ -326,13 +342,26 @@ with st.sidebar:
     viz_uri = st.text_input("VIZ_MODEL_URI", value=st.session_state["viz_uri"])
 
     if st.button("Generate random sample"):
-        set_features(load_random_row(st.session_state["db_uri"]))
+        set_features(load_random_row(st.session_state["db_uri"]), update_inputs=True)
 
     row_count = load_row_count(st.session_state["db_uri"])
     if row_count is None:
         st.warning("DB connection failed. Check DB_URI.")
     else:
         st.caption(f"Rows in customer_features: {row_count}")
+
+    st.divider()
+    st.subheader("PCA Plot")
+    max_points = 10000
+    if row_count:
+        max_points = int(min(row_count, 10000))
+    pca_points = st.slider(
+        "PCA sample size",
+        min_value=500,
+        max_value=max_points,
+        value=min(4000, max_points),
+        step=500,
+    )
 
     cluster_options = {f"{k} — {SEGMENT_NAME.get(k, f'segment_{k}')}": k for k in sorted(SEGMENT_NAME)}
     cluster_label = st.selectbox("Generate by cluster", list(cluster_options.keys()))
@@ -353,7 +382,7 @@ with st.sidebar:
                     tracking_uri,
                     st.session_state["db_uri"],
                 )
-                set_features(profile)
+                set_features(profile, update_inputs=True)
             except Exception as exc:
                 st.warning(f"Cluster-based generation failed: {exc}")
 
@@ -410,15 +439,26 @@ if submitted:
     try:
         import matplotlib.pyplot as plt
 
-        sample_df = load_sample(st.session_state["db_uri"], limit=600)
+        sample_df = load_sample(st.session_state["db_uri"], limit=pca_points)
         if sample_df.empty:
             raise ValueError("No data in customer_features to build PCA background.")
-        _, viz_model = load_models(result["seg_uri"], result["viz_uri"], tracking_uri)
+        seg_model, viz_model = load_models(result["seg_uri"], result["viz_uri"], tracking_uri)
         Z = viz_model.transform(sample_df[FEATURE_COLS])
+        labels = seg_model.predict(sample_df[FEATURE_COLS])
         pc1, pc2 = result["pc1"], result["pc2"]
 
         fig, ax = plt.subplots(figsize=(6, 4))
-        ax.scatter(Z[:, 0], Z[:, 1], s=10, alpha=0.4, label="dataset")
+        cmap = plt.cm.get_cmap("viridis", 4)
+        for cluster_id in sorted(set(labels)):
+            mask = labels == cluster_id
+            ax.scatter(
+                Z[mask, 0],
+                Z[mask, 1],
+                s=10,
+                alpha=0.5,
+                color=cmap(int(cluster_id)),
+                label=f"cluster {int(cluster_id)}",
+            )
         ax.scatter([pc1], [pc2], s=80, color="red", label="current")
         ax.set_xlabel("PC1")
         ax.set_ylabel("PC2")
